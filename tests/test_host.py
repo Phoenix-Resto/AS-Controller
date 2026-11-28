@@ -1,5 +1,6 @@
 """Run: python -m unittest discover -s tests -v"""
 import asyncio
+import ctypes
 import json
 import sys
 import unittest
@@ -7,6 +8,14 @@ from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'windows-host'))
 import host
+
+class InputAbiTests(unittest.TestCase):
+    def test_sendinput_structure_matches_windows_abi(self):
+        # The largest union member must be MOUSEINPUT, not KEYBDINPUT.
+        self.assertEqual(ctypes.sizeof(host.INPUT_UNION),
+                         ctypes.sizeof(host.MOUSEINPUT))
+        expected = 40 if ctypes.sizeof(ctypes.c_void_p) == 8 else 28
+        self.assertEqual(ctypes.sizeof(host.INPUT), expected)
 
 class FakeSocket:
     def __init__(self, events):

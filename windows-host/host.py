@@ -22,21 +22,38 @@ KEYS = {**{chr(n): n for n in range(65, 91)},
         **{f'F{n}': 0x6F + n for n in range(1, 13)}}
 EXTENDED = {'UP', 'DOWN', 'LEFT', 'RIGHT', 'CTRL', 'ALT'}
 
+# Windows INPUT contains a union of mouse, keyboard and hardware input.
+# Keeping only KEYBDINPUT shrinks INPUT to 32 bytes on x64, although the
+# Win32 SendInput ABI requires a 40-byte INPUT structure (28 bytes on x86).
+ULONG_PTR = ctypes.c_size_t
+# Fixed-width Win32 layout; ctypes.wintypes.LONG is host-dependent on non-Windows.
+WIN_LONG = ctypes.c_int32
+WIN_DWORD = ctypes.c_uint32
+WIN_WORD = ctypes.c_uint16
+
+class MOUSEINPUT(ctypes.Structure):
+    _fields_ = [('dx', WIN_LONG), ('dy', WIN_LONG),
+                ('mouseData', WIN_DWORD), ('dwFlags', WIN_DWORD),
+                ('time', WIN_DWORD), ('dwExtraInfo', ULONG_PTR)]
+
+class KEYBDINPUT(ctypes.Structure):
+    _fields_ = [('wVk', WIN_WORD), ('wScan', WIN_WORD),
+                ('dwFlags', WIN_DWORD), ('time', WIN_DWORD),
+                ('dwExtraInfo', ULONG_PTR)]
+
+class HARDWAREINPUT(ctypes.Structure):
+    _fields_ = [('uMsg', WIN_DWORD), ('wParamL', WIN_WORD),
+                ('wParamH', WIN_WORD)]
+
+class INPUT_UNION(ctypes.Union):
+    _fields_ = [('mi', MOUSEINPUT), ('ki', KEYBDINPUT),
+                ('hi', HARDWAREINPUT)]
+
+class INPUT(ctypes.Structure):
+    _anonymous_ = ('u',)
+    _fields_ = [('type', WIN_DWORD), ('u', INPUT_UNION)]
+
 if platform.system() == 'Windows':
-    ULONG_PTR = ctypes.c_size_t
-
-    class KEYBDINPUT(ctypes.Structure):
-        _fields_ = [('wVk', wintypes.WORD), ('wScan', wintypes.WORD),
-                    ('dwFlags', wintypes.DWORD), ('time', wintypes.DWORD),
-                    ('dwExtraInfo', ULONG_PTR)]
-
-    class INPUT_UNION(ctypes.Union):
-        _fields_ = [('ki', KEYBDINPUT)]
-
-    class INPUT(ctypes.Structure):
-        _anonymous_ = ('u',)
-        _fields_ = [('type', wintypes.DWORD), ('u', INPUT_UNION)]
-
     SendInput = ctypes.windll.user32.SendInput
     SendInput.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
     SendInput.restype = wintypes.UINT
